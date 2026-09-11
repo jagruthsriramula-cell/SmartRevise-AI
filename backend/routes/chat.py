@@ -165,19 +165,20 @@ def add_message_stream():
 
     def generate():
         full_response = ""
-        # Yield metadata first (like chat_id)
-        yield f"METADATA:{json.dumps({'chat_id': chat_id_val, 'title': chat_title_val})}\n"
-        
-        for chunk in openai_service.generate_chat_stream(messages):
-            full_response += chunk
-            yield chunk
+        try:
+            # Yield metadata first (like chat_id)
+            yield f"METADATA:{json.dumps({'chat_id': chat_id_val, 'title': chat_title_val})}\n"
             
-        # After stream ends, save AI message to DB
-        from flask import current_app
-        with current_app.app_context():
-            new_ai_msg = Message(chat_id=chat_id_val, role='assistant', content=full_response)
-            db.session.add(new_ai_msg)
-            db.session.commit()
+            for chunk in openai_service.generate_chat_stream(messages):
+                full_response += chunk
+                yield chunk
+        finally:
+            if full_response:
+                from flask import current_app
+                with current_app.app_context():
+                    new_ai_msg = Message(chat_id=chat_id_val, role='assistant', content=full_response)
+                    db.session.add(new_ai_msg)
+                    db.session.commit()
 
     from flask import Response
     return Response(generate(), mimetype='text/event-stream')
